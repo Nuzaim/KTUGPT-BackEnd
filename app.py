@@ -23,11 +23,11 @@ def foo():
     embeddings = model.encode(chunks)
 
     # Print the embeddings
-    for sentence, embedding in zip(sentences, embeddings):
+    for sentence, embedding in zip(chunks, embeddings):
         print("Sentence:", sentence)
         print("Embedding:", embedding)
         print("")
-    return list(embeddings)
+    return embeddings.tolist() #return 0th element because tolist() converts to list expecting the ndarray to be 2d
 
 @app.route("/pdf", methods=["POST"])
 def hello_world():
