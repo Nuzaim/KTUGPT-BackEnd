@@ -1,33 +1,55 @@
 from flask import Flask, request
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, util
+import torch
+from urllib.parse import unquote
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 app = Flask(__name__)
 
 @app.route("/text", methods=["POST"])
 def foo():
-    text_data = request.data
+    query = request.query_string.decode()
+    query = unquote(query)
+    print(query)
+    # text_data is the database in which semantic search is performed.
+    text_data = """"""
+    
     # split into chunks
     text_splitter = CharacterTextSplitter(
-        separator="\n",
+        separator=".",
         chunk_size=1000,
         chunk_overlap=200,
         length_function=len
     )
     text_data = str(text_data)
     text_data = text_data.lower()
-    chunks = text_splitter.split_text(str(text_data)) 
+    corpus = text_splitter.split_text(str(text_data))
     # Sentences are encoded by calling model.encode()
-    embeddings = model.encode(chunks)
+    corpus_embeddings = model.encode(corpus, convert_to_tensor=True)
 
-    # Print the embeddings
-    for sentence, embedding in zip(chunks, embeddings):
-        print("Sentence:", sentence)
-        print("Embedding:", embedding)
-        print("")
-    return embeddings.tolist() #return 0th element because tolist() converts to list expecting the ndarray to be 2d
+    # Find the closest 2 sentences of the corpus for each query sentence based on cosine similarity
+    top_k = min(2, len(corpus))
+    # Result dictionary
+    result = {}
+    # Encoding query
+    query_embedding = model.encode(query, convert_to_tensor=True)
+
+    # We use cosine-similarity and torch.topk to find the highest 2 scores
+    cos_scores = util.cos_sim(query_embedding, corpus_embeddings)[0]
+    top_results = torch.topk(cos_scores, k=top_k)
+
+    print("\n\n======================\n\n")
+    print("Query:", query)
+    result["query"] = query
+    print("\nTop 2 most similar sentences in corpus:")
+
+    result["answer"] = []
+    for score, idx in zip(top_results[0], top_results[1]):
+        print(corpus[idx], "(Score: {:.4f})".format(score))
+        result["answer"].append(corpus[idx])
+    return result 
 
 @app.route("/pdf", methods=["POST"])
 def hello_world():
